@@ -1,0 +1,63 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: evolution_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: evouser
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: evolutiondb
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - n8n_evoapi
+
+  redis:
+    image: redis:7
+    container_name: evolution_redis
+    restart: always
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: [ "redis-server", "--requirepass", "${REDIS_PASSWORD}" ]
+    env_file:
+      - .env
+    networks:
+      - n8n_evoapi
+
+  evolution-api:
+    container_name: evolution_api
+    image: evoapicloud/evolution-api:v2.3.6
+    restart: always
+    ports:
+      - "127.0.0.1:8080:8080"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.evolution.rule=Host(`evolution.srv750421.hstgr.cloud`)
+      - traefik.http.routers.evolution.entrypoints=web,websecure
+      - traefik.http.routers.evolution.tls=true
+      - traefik.http.services.evolution.loadbalancer.server.port=8080
+      - traefik.http.routers.evolution.tls.certresolver=mytlschallenge
+      - traefik.http.routers.evolution.middlewares=evolution-headers@docker
+      - traefik.http.middlewares.evolution-headers.headers.SSLRedirect=true
+      - traefik.http.middlewares.evolution-headers.headers.STSSeconds=315360000
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - n8n_evoapi
+
+networks:
+  n8n_evoapi:
+    external: true
+
+volumes:
+  postgres_data:
+  evolution_instances:
